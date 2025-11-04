@@ -58,7 +58,7 @@ export const SparklesIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
 export const VideoCameraIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m15 12 4-2.5v5L15 12Z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.24 7.64C5.83 6.62 6.84 6 8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V10c0-1.16.62-2.17 1.24-2.36Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.24 7.64C5.83 6.62 6.84 6 8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4-4H8a4 4 0 0 1-4-4V10c0-1.16.62-2.17 1.24-2.36Z" />
     </svg>
 );
 
