@@ -38,10 +38,11 @@ Narzędzie do głębokiej analizy wizualnej.
 Aplikacja wymaga Node.js i npm do zarządzania zależnościami i uruchomienia serwera deweloperskiego.
 
 1.  **Klucz API:**
-    Aplikacja wymaga klucza API do Google Gemini. Klucz ten **musi** być dostępny jako zmienna środowiskowa `API_KEY` w środowisku, w którym aplikacja jest uruchamiana. Można to zrobić, tworząc plik `.env.local` w głównym katalogu projektu z następującą zawartością:
+    Aplikacja wymaga klucza API do Google Gemini. Klucz ten **musi** być dostępny jako zmienna środowiskowa `API_KEY`. Można to zrobić, tworząc plik `.env.local` w głównym katalogu projektu z następującą zawartością:
     ```
-    VITE_API_KEY=TWOJ_KLUCZ_API
+    API_KEY=TWOJ_KLUCZ_API
     ```
+    **Uwaga:** W przypadku Vite, zmienne dostępne w kodzie klienckim muszą mieć prefiks `VITE_`. Jeśli zamierzasz używać `import.meta.env`, zmień nazwę zmiennej na `VITE_API_KEY`. W obecnej konfiguracji zakładamy, że zmienna `API_KEY` jest wstrzykiwana do `process.env` przez środowisko hostingowe.
 
 2.  **Instalacja Zależności:**
     ```bash

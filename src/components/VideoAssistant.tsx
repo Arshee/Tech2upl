@@ -427,7 +427,7 @@ const VideoAssistant: React.FC = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {(Object.keys(initialState.connectedAccounts) as SocialPlatform[]).map((id) => (
                         <div key={id} className="text-center">
-                            <div className="mx-auto text-gray-300 mb-2">{
+                            <div className="mx-auto text-gray-300 mb-2 flex justify-center">{
                                 { youtube: <YouTubeIcon className="w-6 h-6" />, tiktok: <TikTokIcon className="w-6 h-6" />, instagram: <InstagramIcon className="w-6 h-6" />, facebook: <FacebookIcon className="w-6 h-6" /> }[id]
                             }</div>
                             <button 
