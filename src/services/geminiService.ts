@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type, Chat, Modality } from "@google/genai";
 import { PublicationPlan, TitleSuggestions, ThumbnailSuggestion, CategoryAndTags, MusicTrack } from '../types';
 
+// Fix: Use process.env.API_KEY to access the API key as per the coding guidelines.
 if (!process.env.API_KEY) {
     throw new Error("Brak klucza API. Ustaw zmienną środowiskową API_KEY.");
 }
@@ -20,7 +21,6 @@ const fileToGenerativePart = async (file: File) => {
 };
 
 export const searchRoyaltyFreeMusic = async (query: string, videoDescription: string): Promise<MusicTrack[]> => {
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const prompt = `
         Jesteś kuratorem w obszernej bibliotece muzyki bez tantiem (royalty-free). Twoim zadaniem jest znalezienie 5 idealnie pasujących utworów muzycznych na podstawie zapytania użytkownika i opisu wideo.
 
@@ -64,7 +64,6 @@ export const searchRoyaltyFreeMusic = async (query: string, videoDescription: st
 
 
 export const generateCategoryAndTags = async (filename: string): Promise<CategoryAndTags> => {
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const prompt = `
         Jesteś ekspertem od SEO na YouTube i w mediach społecznościowych. Twoim zadaniem jest przeanalizowanie nazwy pliku wideo i wygenerowanie kategorii, tagów i kluczowej frazy.
 
@@ -124,7 +123,6 @@ export const generateCategoryAndTags = async (filename: string): Promise<Categor
 };
 
 export const generateTitlesFromFilename = async (filename: string, primaryKeyword: string): Promise<TitleSuggestions> => {
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const prompt = `
         Jesteś ekspertem od SEO i marketingu wideo. Twoim zadaniem jest przekształcenie technicznej nazwy pliku wideo w angażujące tytuły, bazując na głównej frazy kluczowej.
 
@@ -180,20 +178,16 @@ export const generatePublicationPlan = async (
     let enhancements = [];
     if (selectedMusic) {
         if (selectedMusic.artist === 'Własny utwór') {
-            // FIX: Replaced escaped backticks with actual backticks for template literals.
             enhancements.push(`Wideo zawiera niestandardową muzykę w tle: "${selectedMusic.name}". Ważne: Głośność muzyki powinna być ustawiona na 5-10%, aby nie zagłuszać mowy.`);
         } else {
-            // FIX: Replaced escaped backticks with actual backticks for template literals.
             enhancements.push(`Wideo zawiera muzykę w tle: "${selectedMusic.name}" autorstwa ${selectedMusic.artist}. Ważne: Głośność muzyki powinna być ustawiona na 5-10%, aby nie zagłuszać mowy.`);
         }
     }
     if (hasSubtitles) {
         enhancements.push('Wideo zawiera dynamiczne, wgrane na stałe napisy (hard-coded captions) dla lepszej dostępności.');
     }
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const enhancementsText = enhancements.length > 0 ? `\nDodatkowe informacje o wideo: ${enhancements.join(' ')}` : '';
 
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const prompt = `
         Jesteś zaawansowanym Asystentem Publikacji Wideo AI. Twoim zadaniem jest stworzenie kompleksowego planu publikacji dla wideo.
         
@@ -287,7 +281,6 @@ export const generateThumbnails = async (
         ? "Miniaturka musi być w formacie poziomym (16:9)." 
         : "Miniaturka musi być w formacie pionowym (9:16).";
     
-    // FIX: Replaced escaped backticks with actual backticks for template literals.
     const basePrompt = `
         Jesteś grafikiem i ekspertem od marketingu na YouTube. Twoim zadaniem jest stworzenie WARIANTU miniaturki do wideo na podstawie dostarczonego kadru (pierwszy obraz).
         - Tytuł wideo: "${title}"
@@ -320,7 +313,6 @@ export const generateThumbnails = async (
         }
 
         const generationPromises = stylePrompts.map(async (stylePrompt, index) => {
-            // FIX: Replaced escaped backticks with actual backticks for template literals.
             const fullPrompt = `${basePrompt}\n${stylePrompt}`;
 
             const response = await ai.models.generateContent({
@@ -335,16 +327,13 @@ export const generateThumbnails = async (
 
             if (!responseParts) {
                 if (response.promptFeedback?.blockReason) {
-                    // FIX: Replaced escaped backticks with actual backticks for template literals.
                     console.error(`Generowanie wariantu ${index + 1} zablokowane: ${response.promptFeedback.blockReason}`);
                 }
-                // FIX: Replaced escaped backticks with actual backticks for template literals.
                 console.warn(`Model nie wygenerował obrazu dla wariantu ${index + 1}.`);
                 return null;
             }
 
             let imageData: string | null = null;
-            // FIX: Replaced escaped backticks with actual backticks for template literals.
             let description: string = `Wariant ${index + 1}`;
 
             for (const part of responseParts) {
