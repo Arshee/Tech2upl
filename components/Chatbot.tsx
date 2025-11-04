@@ -1,8 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage } from '../types';
 import { getChatInstance } from '../services/geminiService';
-import { LoadingSpinner } from './LoadingSpinner';
 import { SendIcon, UserIcon, SparklesIcon } from './Icons';
 import type { Chat } from '@google/genai';
 
@@ -25,20 +23,41 @@ const Chatbot: React.FC = () => {
         if (!input.trim() || isLoading) return;
         
         const userMessage: ChatMessage = { role: 'user', parts: [{ text: input }] };
+        const currentInput = input;
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
 
         try {
             if (chatInstanceRef.current) {
-                const response = await chatInstanceRef.current.sendMessage({ message: input });
-                const modelMessage: ChatMessage = { role: 'model', parts: [{ text: response.text }] };
-                setMessages(prev => [...prev, modelMessage]);
+                const stream = await chatInstanceRef.current.sendMessageStream({ message: currentInput });
+                
+                // Add an empty model message placeholder
+                setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }] }]);
+
+                let fullResponse = '';
+                for await (const chunk of stream) {
+                    fullResponse += chunk.text;
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastMessageIndex = newMessages.length - 1;
+                        // Create a new message object to avoid direct mutation
+                        newMessages[lastMessageIndex] = {
+                            ...newMessages[lastMessageIndex],
+                            parts: [{ text: fullResponse }]
+                        };
+                        return newMessages;
+                    });
+                }
             }
         } catch (error) {
             console.error(error);
             const errorMessage: ChatMessage = { role: 'model', parts: [{ text: "Przepraszam, wystąpił błąd. Spróbuj ponownie." }] };
-            setMessages(prev => [...prev, errorMessage]);
+            // Replace the placeholder with an error message
+            setMessages(prev => {
+                const messagesWithoutPlaceholder = prev.slice(0, -1);
+                return [...messagesWithoutPlaceholder, errorMessage];
+            });
         } finally {
             setIsLoading(false);
         }
@@ -60,7 +79,7 @@ const Chatbot: React.FC = () => {
                                 </div>
                             )}
                             <div className={`max-w-md md:max-w-lg p-3 rounded-2xl ${msg.role === 'user' ? 'bg-brand-primary text-base-100 rounded-br-none' : 'bg-base-300 text-base-content rounded-bl-none'}`}>
-                                <p className="text-sm">{msg.parts[0].text}</p>
+                                <p className="text-sm whitespace-pre-wrap">{msg.parts[0].text}</p>
                             </div>
                              {msg.role === 'user' && (
                                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-base-300 flex items-center justify-center">
@@ -69,16 +88,6 @@ const Chatbot: React.FC = () => {
                             )}
                         </div>
                     ))}
-                     {isLoading && (
-                        <div className="flex items-start gap-3 justify-start">
-                             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-brand-primary flex items-center justify-center">
-                                <SparklesIcon className="w-5 h-5 text-base-100" />
-                            </div>
-                            <div className="max-w-md md:max-w-lg p-3 rounded-2xl bg-base-300 text-base-content rounded-bl-none">
-                               <LoadingSpinner/>
-                            </div>
-                        </div>
-                     )}
                     <div ref={messagesEndRef} />
                 </div>
                 <div className="mt-4 flex-shrink-0">
