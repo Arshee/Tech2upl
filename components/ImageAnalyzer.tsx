@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { analyzeImage } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -11,9 +10,9 @@ const ImageAnalyzer: React.FC = () => {
     const [analysis, setAnalysis] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+
+    const processFile = (file: File | null | undefined) => {
         if (file) {
             setImageFile(file);
             const reader = new FileReader();
@@ -24,6 +23,36 @@ const ImageAnalyzer: React.FC = () => {
             setAnalysis(null);
             setError(null);
         }
+    }
+    
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        processFile(file);
+    };
+
+    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        processFile(file);
     };
 
     const handleAnalyzeClick = useCallback(async () => {
@@ -56,7 +85,13 @@ const ImageAnalyzer: React.FC = () => {
                 <div className="bg-base-200 p-6 rounded-2xl shadow-lg space-y-6">
                      <div>
                         <label htmlFor="image-upload" className="block text-sm font-medium text-gray-300 mb-2">Plik Obrazu</label>
-                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-md">
+                        <div
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md transition-colors ${isDragging ? 'border-brand-primary bg-base-300' : 'border-gray-600'}`}
+                        >
                             <div className="space-y-1 text-center">
                                 {imagePreview ? (
                                     <img src={imagePreview} alt="Podgląd" className="max-h-48 mx-auto rounded-md" />
