@@ -1,4 +1,3 @@
-
 export interface ScheduleItem {
   platform: string;
   time: string;

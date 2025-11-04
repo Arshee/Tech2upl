@@ -1,4 +1,3 @@
-
 import React, { useReducer, useCallback, useRef, useEffect } from 'react';
 import { generatePublicationPlan, generateTitlesFromFilename, generateThumbnails, generateCategoryAndTags, searchRoyaltyFreeMusic } from '../services/geminiService';
 import type { PublicationPlan, TitleSuggestions, ThumbnailSuggestion, CategoryAndTags, MusicTrack } from '../types';

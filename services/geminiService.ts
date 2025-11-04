@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Chat, Modality } from "@google/genai";
 import { PublicationPlan, TitleSuggestions, ThumbnailSuggestion, CategoryAndTags, MusicTrack } from '../types';
 
