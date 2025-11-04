@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useReducer, useCallback, useRef, useEffect } from 'react';
 import { generatePublicationPlan, generateTitlesFromFilename, generateThumbnails, generateCategoryAndTags, searchRoyaltyFreeMusic } from '../services/geminiService';
 import type { PublicationPlan, TitleSuggestions, ThumbnailSuggestion, CategoryAndTags, MusicTrack } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -8,127 +8,201 @@ import { UploadIcon, LightBulbIcon, SparklesIcon, VideoCameraIcon, TagIcon, Musi
 type VideoOrientation = 'landscape' | 'portrait';
 type SocialPlatform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
 
+type State = {
+  title: string;
+  categories: string;
+  tone: string;
+  videoFile: File | null;
+  videoPreviewUrl: string | null;
+  videoOrientation: VideoOrientation;
+  titleSuggestions: TitleSuggestions | null;
+  categoryAndTags: CategoryAndTags | null;
+  thumbnailSuggestions: ThumbnailSuggestion[] | null;
+  selectedMusic: MusicTrack | null;
+  hasSubtitles: boolean;
+  connectedAccounts: Record<SocialPlatform, boolean>;
+  isMusicModalOpen: boolean;
+  musicSearchQuery: string;
+  musicSearchResults: MusicTrack[];
+  isSearchingMusic: boolean;
+  musicSearchError: string | null;
+  zoomedImage: string | null;
+  logoFile: File | null;
+  logoPreview: string | null;
+  logoPosition: string;
+  thumbnailTimestamp: number;
+  thumbnailOverlayText: string;
+  isGeneratingTitles: boolean;
+  isGeneratingCategories: boolean;
+  isGeneratingThumbnails: boolean;
+  isLoading: boolean;
+  results: PublicationPlan | null;
+  error: string | null;
+};
+
+type Action =
+  | { type: 'SET_FIELD'; field: keyof State; payload: any }
+  | { type: 'SET_VIDEO_FILE'; payload: { file: File; previewUrl: string } }
+  | { type: 'RESET_FORM' }
+  | { type: 'GENERATION_START'; field: 'titles' | 'categories' | 'thumbnails' | 'plan' }
+  | { type: 'GENERATION_SUCCESS'; field: 'titles' | 'categories' | 'thumbnails' | 'plan'; payload: any }
+  | { type: 'GENERATION_ERROR'; payload: string }
+  | { type: 'DISMISS_ERROR' }
+  | { type: 'TOGGLE_ACCOUNT'; payload: SocialPlatform };
+
+
+const initialState: State = {
+  title: '',
+  categories: '',
+  tone: 'profesjonalny',
+  videoFile: null,
+  videoPreviewUrl: null,
+  videoOrientation: 'landscape',
+  titleSuggestions: null,
+  categoryAndTags: null,
+  thumbnailSuggestions: [],
+  selectedMusic: null,
+  hasSubtitles: true,
+  connectedAccounts: { youtube: false, tiktok: false, instagram: false, facebook: false },
+  isMusicModalOpen: false,
+  musicSearchQuery: '',
+  musicSearchResults: [],
+  isSearchingMusic: false,
+  musicSearchError: null,
+  zoomedImage: null,
+  logoFile: null,
+  logoPreview: null,
+  logoPosition: 'bottom-right',
+  thumbnailTimestamp: 1,
+  thumbnailOverlayText: '',
+  isGeneratingTitles: false,
+  isGeneratingCategories: false,
+  isGeneratingThumbnails: false,
+  isLoading: false,
+  results: null,
+  error: null,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_FIELD':
+      return { ...state, [action.field]: action.payload };
+    case 'SET_VIDEO_FILE':
+      if (state.videoPreviewUrl) URL.revokeObjectURL(state.videoPreviewUrl);
+      return {
+        ...state,
+        ...initialState, // Reset form on new video
+        videoFile: action.payload.file,
+        videoPreviewUrl: action.payload.previewUrl,
+      };
+    case 'RESET_FORM':
+       if (state.videoPreviewUrl) URL.revokeObjectURL(state.videoPreviewUrl);
+      return initialState;
+    case 'GENERATION_START':
+      const loadingState: Partial<State> = { error: null };
+      if (action.field === 'titles') loadingState.isGeneratingTitles = true;
+      if (action.field === 'categories') loadingState.isGeneratingCategories = true;
+      if (action.field === 'thumbnails') {
+          loadingState.isGeneratingThumbnails = true;
+          loadingState.thumbnailSuggestions = [];
+      }
+      if (action.field === 'plan') {
+          loadingState.isLoading = true;
+          loadingState.results = null;
+      }
+      return { ...state, ...loadingState };
+    case 'GENERATION_SUCCESS':
+        const successState: Partial<State> = {};
+        if (action.field === 'titles') {
+            successState.isGeneratingTitles = false;
+            successState.titleSuggestions = action.payload;
+            successState.title = action.payload.youtubeTitles[0] || '';
+        }
+        if (action.field === 'categories') {
+            successState.isGeneratingCategories = false;
+            successState.categoryAndTags = action.payload;
+            successState.categories = action.payload.generalCategory;
+        }
+        if (action.field === 'thumbnails') {
+            successState.isGeneratingThumbnails = false;
+            successState.thumbnailSuggestions = action.payload;
+        }
+        if (action.field === 'plan') {
+            successState.isLoading = false;
+            successState.results = action.payload;
+        }
+        return { ...state, ...successState };
+    case 'GENERATION_ERROR':
+        return { 
+            ...state, 
+            error: action.payload,
+            isLoading: false,
+            isGeneratingTitles: false,
+            isGeneratingCategories: false,
+            isGeneratingThumbnails: false,
+            isSearchingMusic: false
+        };
+    case 'DISMISS_ERROR':
+        return { ...state, error: null };
+    case 'TOGGLE_ACCOUNT':
+        return { 
+            ...state, 
+            connectedAccounts: {
+                ...state.connectedAccounts,
+                [action.payload]: !state.connectedAccounts[action.payload]
+            }
+        };
+    default:
+      return state;
+  }
+}
+
 const VideoAssistant: React.FC = () => {
-  // Main Content State
-  const [title, setTitle] = useState('');
-  const [categories, setCategories] = useState('');
-  const [tone, setTone] = useState('profesjonalny');
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  const [videoOrientation, setVideoOrientation] = useState<VideoOrientation>('landscape');
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const {
+      title, categories, tone, videoFile, videoPreviewUrl, videoOrientation,
+      titleSuggestions, categoryAndTags, thumbnailSuggestions, selectedMusic, hasSubtitles,
+      connectedAccounts, isMusicModalOpen, musicSearchQuery, musicSearchResults,
+      isSearchingMusic, musicSearchError, zoomedImage, logoFile, logoPreview,
+      logoPosition, thumbnailTimestamp, thumbnailOverlayText, isGeneratingTitles,
+      isGeneratingCategories, isGeneratingThumbnails, isLoading, results, error
+  } = state;
 
-  // AI-Generated Suggestions State
-  const [titleSuggestions, setTitleSuggestions] = useState<TitleSuggestions | null>(null);
-  const [categoryAndTags, setCategoryAndTags] = useState<CategoryAndTags | null>(null);
-  const [thumbnailSuggestions, setThumbnailSuggestions] = useState<ThumbnailSuggestion[] | null>(null);
-  
-  // Enhancements State
-  const [selectedMusic, setSelectedMusic] = useState<MusicTrack | null>(null);
-  const [hasSubtitles, setHasSubtitles] = useState(true);
-
-  // Social Connect State
-  const [connectedAccounts, setConnectedAccounts] = useState<Record<SocialPlatform, boolean>>({
-    youtube: false,
-    tiktok: false,
-    instagram: false,
-    facebook: false,
-  });
-
-  // Music Search & Upload Modal State
-  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
-  const [musicSearchQuery, setMusicSearchQuery] = useState('');
-  const [musicSearchResults, setMusicSearchResults] = useState<MusicTrack[]>([]);
-  const [isSearchingMusic, setIsSearchingMusic] = useState(false);
-  const [musicSearchError, setMusicSearchError] = useState<string | null>(null);
-
-  // Thumbnail Zoom Modal State
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-
-  // Branding State
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoPosition, setLogoPosition] = useState('bottom-right');
-
-  // Thumbnail Generation UI State
-  const [thumbnailTimestamp, setThumbnailTimestamp] = useState(1);
-  const [thumbnailOverlayText, setThumbnailOverlayText] = useState('');
-  
-  // Loading and Error State
-  const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
-  const [isGeneratingCategories, setIsGeneratingCategories] = useState(false);
-  const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<PublicationPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    // Sync video player time with the slider
     if (videoRef.current) {
       videoRef.current.currentTime = thumbnailTimestamp;
     }
   }, [thumbnailTimestamp]);
   
-  const resetState = () => {
-    setTitleSuggestions(null);
-    setThumbnailSuggestions(null);
-    setResults(null);
-    setError(null);
-    setCategoryAndTags(null);
-    setTitle('');
-    setCategories('');
-    setThumbnailTimestamp(1);
-    setThumbnailOverlayText('');
-    setVideoOrientation('landscape');
-    setSelectedMusic(null);
-  }
-
-  const handleVideoMetadata = () => {
-      if (videoRef.current) {
-          const { videoWidth, videoHeight } = videoRef.current;
-          setVideoOrientation(videoWidth > videoHeight ? 'landscape' : 'portrait');
-          setThumbnailTimestamp(1);
-      }
-  };
-
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setVideoFile(file);
-      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-      setVideoPreviewUrl(URL.createObjectURL(file));
-      resetState();
+      dispatch({ type: 'SET_VIDEO_FILE', payload: { file, previewUrl: URL.createObjectURL(file) }});
       
-      setIsGeneratingCategories(true);
-      setIsGeneratingTitles(true);
+      dispatch({ type: 'GENERATION_START', field: 'categories' });
+      dispatch({ type: 'GENERATION_START', field: 'titles' });
       try {
         const catAndTags = await generateCategoryAndTags(file.name);
-        setCategoryAndTags(catAndTags);
-        setCategories(catAndTags.generalCategory); // Auto-fill category input
-        setIsGeneratingCategories(false);
+        dispatch({ type: 'GENERATION_SUCCESS', field: 'categories', payload: catAndTags });
 
         const suggestions = await generateTitlesFromFilename(file.name, catAndTags.primaryKeyword);
-        setTitleSuggestions(suggestions);
-        setTitle(suggestions.youtubeTitles[0] || '');
+        dispatch({ type: 'GENERATION_SUCCESS', field: 'titles', payload: suggestions });
 
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Błąd podczas automatycznej analizy pliku.');
-      } finally {
-        setIsGeneratingCategories(false);
-        setIsGeneratingTitles(false);
+        dispatch({ type: 'GENERATION_ERROR', payload: err instanceof Error ? err.message : 'Błąd podczas automatycznej analizy pliku.' });
       }
     }
-  }, [videoPreviewUrl]);
+  }, []);
 
   const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if(file) {
-      setLogoFile(file);
+      dispatch({ type: 'SET_FIELD', field: 'logoFile', payload: file });
       const reader = new FileReader();
-      reader.onloadend = () => setLogoPreview(reader.result as string);
+      reader.onloadend = () => dispatch({ type: 'SET_FIELD', field: 'logoPreview', payload: reader.result as string });
       reader.readAsDataURL(file);
     }
   }
@@ -136,48 +210,37 @@ const VideoAssistant: React.FC = () => {
   const handleMusicFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-        setSelectedMusic({
-            name: file.name,
-            artist: 'Własny utwór',
-            mood: 'Niestandardowy'
-        });
-        setIsMusicModalOpen(false);
+        dispatch({ type: 'SET_FIELD', field: 'selectedMusic', payload: { name: file.name, artist: 'Własny utwór', mood: 'Niestandardowy' } });
+        dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: false });
     }
   };
 
   const handleSearchMusic = async () => {
     if(!musicSearchQuery.trim()){
-        setMusicSearchError("Wpisz czego szukasz.");
+        dispatch({ type: 'SET_FIELD', field: 'musicSearchError', payload: "Wpisz czego szukasz." });
         return;
     }
-    setIsSearchingMusic(true);
-    setMusicSearchError(null);
-    setMusicSearchResults([]);
+    dispatch({ type: 'SET_FIELD', field: 'isSearchingMusic', payload: true });
+    dispatch({ type: 'SET_FIELD', field: 'musicSearchError', payload: null });
+    dispatch({ type: 'SET_FIELD', field: 'musicSearchResults', payload: [] });
     try {
         const videoDescription = `${title} - ${categories}`;
         const results = await searchRoyaltyFreeMusic(musicSearchQuery, videoDescription);
-        setMusicSearchResults(results);
+        dispatch({ type: 'SET_FIELD', field: 'musicSearchResults', payload: results });
     } catch (err) {
-        setMusicSearchError(err instanceof Error ? err.message : "Błąd podczas wyszukiwania muzyki.");
+        dispatch({ type: 'SET_FIELD', field: 'musicSearchError', payload: err instanceof Error ? err.message : "Błąd podczas wyszukiwania muzyki." });
     } finally {
-        setIsSearchingMusic(false);
+        dispatch({ type: 'SET_FIELD', field: 'isSearchingMusic', payload: false });
     }
-  };
-
-  const handleSelectMusic = (track: MusicTrack) => {
-    setSelectedMusic(track);
-    setIsMusicModalOpen(false);
   };
   
   const handleGenerateThumbnails = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !title ) {
-        setError("Wideo i tytuł są wymagane do wygenerowania miniatur.");
+        dispatch({ type: 'GENERATION_ERROR', payload: "Wideo i tytuł są wymagane do wygenerowania miniatur." });
         return;
     }
     
-    setIsGeneratingThumbnails(true);
-    setThumbnailSuggestions(null);
-    setError(null);
+    dispatch({ type: 'GENERATION_START', field: 'thumbnails' });
     
     try {
         const video = videoRef.current;
@@ -202,12 +265,10 @@ const VideoAssistant: React.FC = () => {
         if (!frameFile) throw new Error("Nie udało się przechwycić klatki wideo.");
         
         const thumbs = await generateThumbnails(frameFile, title, thumbnailOverlayText, logoFile || undefined, logoPosition, videoOrientation);
-        setThumbnailSuggestions(thumbs);
+        dispatch({ type: 'GENERATION_SUCCESS', field: 'thumbnails', payload: thumbs });
         
     } catch (err) {
-        setError(err instanceof Error ? err.message : 'Wystąpił nieznany błąd podczas generowania miniatur.');
-    } finally {
-        setIsGeneratingThumbnails(false);
+        dispatch({ type: 'GENERATION_ERROR', payload: err instanceof Error ? err.message : 'Wystąpił nieznany błąd podczas generowania miniatur.' });
     }
 
   }, [title, thumbnailTimestamp, thumbnailOverlayText, logoFile, logoPosition, videoOrientation]);
@@ -218,36 +279,34 @@ const VideoAssistant: React.FC = () => {
         alert("Proszę wybrać plik wideo.");
         return;
     }
-    setIsLoading(true);
-    setError(null);
-    setResults(null);
+    dispatch({ type: 'GENERATION_START', field: 'plan' });
     try {
       const plan = await generatePublicationPlan(title, categories, tone, selectedMusic, hasSubtitles);
-      setResults(plan);
+      dispatch({ type: 'GENERATION_SUCCESS', field: 'plan', payload: plan });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Wystąpił nieznany błąd.');
-    } finally {
-      setIsLoading(false);
+      dispatch({ type: 'GENERATION_ERROR', payload: err instanceof Error ? err.message : 'Wystąpił nieznany błąd.' });
     }
   }, [title, categories, tone, videoFile, selectedMusic, hasSubtitles]);
+  
+  // Modal Escape Key Handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            if (isMusicModalOpen) dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: false });
+            if (zoomedImage) dispatch({ type: 'SET_FIELD', field: 'zoomedImage', payload: null });
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMusicModalOpen, zoomedImage]);
 
-  const handleConnectAccount = (platform: SocialPlatform) => {
-    setConnectedAccounts(prev => ({...prev, [platform]: !prev[platform]}));
-  };
-
-  const socialPlatforms: { id: SocialPlatform; name: string; icon: React.ReactNode }[] = [
-    { id: 'youtube', name: 'YouTube', icon: <YouTubeIcon className="w-6 h-6" /> },
-    { id: 'tiktok', name: 'TikTok', icon: <TikTokIcon className="w-6 h-6" /> },
-    { id: 'instagram', name: 'Instagram', icon: <InstagramIcon className="w-6 h-6" /> },
-    { id: 'facebook', name: 'Facebook', icon: <FacebookIcon className="w-6 h-6" /> },
-  ];
 
   const MusicSearchModal = () => (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMusicModalOpen(false)}>
-        <div className="bg-base-200 rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: false })}>
+        <div role="dialog" aria-modal="true" aria-labelledby="music-modal-title" className="bg-base-200 rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white">Wyszukaj lub Dodaj Muzykę</h3>
-                <button onClick={() => setIsMusicModalOpen(false)} className="text-gray-400 hover:text-white"><CloseIcon className="w-6 h-6"/></button>
+                <h3 id="music-modal-title" className="text-xl font-bold text-white">Wyszukaj lub Dodaj Muzykę</h3>
+                <button onClick={() => dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: false })} className="text-gray-400 hover:text-white" aria-label="Zamknij okno"><CloseIcon className="w-6 h-6"/></button>
             </div>
              <div>
                 <label htmlFor="music-upload" className="w-full text-center p-3 mb-4 bg-base-300 hover:bg-base-100 rounded-lg cursor-pointer block text-sm text-brand-light">
@@ -260,12 +319,12 @@ const VideoAssistant: React.FC = () => {
                 <input 
                     type="text" 
                     value={musicSearchQuery} 
-                    onChange={e => setMusicSearchQuery(e.target.value)} 
+                    onChange={e => dispatch({ type: 'SET_FIELD', field: 'musicSearchQuery', payload: e.target.value })} 
                     onKeyPress={(e) => e.key === 'Enter' && handleSearchMusic()}
                     placeholder="np. spokojna muzyka do vloga" 
                     className="flex-grow bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none"
                 />
-                <button onClick={handleSearchMusic} disabled={isSearchingMusic} className="px-4 py-2 bg-brand-primary text-base-100 font-semibold rounded-lg flex items-center justify-center disabled:opacity-50">
+                <button onClick={handleSearchMusic} disabled={isSearchingMusic} className="px-4 py-2 bg-brand-primary text-base-100 font-semibold rounded-lg flex items-center justify-center disabled:opacity-50" aria-label="Szukaj muzyki">
                     {isSearchingMusic ? <LoadingSpinner/> : <SearchIcon className="w-5 h-5"/>}
                 </button>
             </div>
@@ -278,7 +337,10 @@ const VideoAssistant: React.FC = () => {
                             <p className="font-semibold text-white">{track.name}</p>
                             <p className="text-sm text-gray-400">{track.artist} - <span className="text-brand-light">{track.mood}</span></p>
                         </div>
-                        <button onClick={() => handleSelectMusic(track)} className="text-xs bg-brand-primary text-base-100 font-semibold px-3 py-1 rounded-md hover:bg-brand-secondary">Wybierz</button>
+                        <button onClick={() => {
+                            dispatch({ type: 'SET_FIELD', field: 'selectedMusic', payload: track });
+                            dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: false });
+                        }} className="text-xs bg-brand-primary text-base-100 font-semibold px-3 py-1 rounded-md hover:bg-brand-secondary">Wybierz</button>
                     </div>
                 ))}
             </div>
@@ -287,8 +349,8 @@ const VideoAssistant: React.FC = () => {
   );
   
   const ImageZoomModal = () => (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setZoomedImage(null)}>
-        <button onClick={() => setZoomedImage(null)} className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300"><CloseIcon className="w-8 h-8"/></button>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => dispatch({ type: 'SET_FIELD', field: 'zoomedImage', payload: null })}>
+        <button onClick={() => dispatch({ type: 'SET_FIELD', field: 'zoomedImage', payload: null })} className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300" aria-label="Zamknij powiększenie"><CloseIcon className="w-8 h-8"/></button>
         <img 
             src={`data:image/jpeg;base64,${zoomedImage}`} 
             alt="Powiększona miniatura" 
@@ -296,6 +358,13 @@ const VideoAssistant: React.FC = () => {
             onClick={e => e.stopPropagation()}
         />
     </div>
+  );
+
+  const FormSection: React.FC<{title: string, children: React.ReactNode}> = ({title, children}) => (
+      <fieldset>
+          <legend className="text-xl font-bold text-white mb-4">{title}</legend>
+          {children}
+      </fieldset>
   );
 
   return (
@@ -311,8 +380,7 @@ const VideoAssistant: React.FC = () => {
 
       <div className="bg-base-200 p-6 rounded-2xl shadow-lg animate-fade-in">
         <form onSubmit={handleFormSubmit} className="space-y-8">
-            <fieldset>
-                <legend className="text-xl font-bold text-white mb-4">1. Treść Podstawowa</legend>
+            <FormSection title="1. Treść Podstawowa">
                 <div className="space-y-6">
                     <div>
                         <label htmlFor="video-upload" className="block text-sm font-medium text-gray-300 mb-2">Plik Wideo</label>
@@ -344,27 +412,28 @@ const VideoAssistant: React.FC = () => {
                     {titleSuggestions && (
                         <div className="p-4 bg-base-300 rounded-lg space-y-3 animate-fade-in">
                             <h4 className="font-semibold text-gray-200 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-brand-primary"/> Sugerowane Tytuły</h4>
-                            {titleSuggestions.youtubeTitles.map((ytTitle, i) => (<div key={i} className="flex items-center justify-between text-sm"><span className="text-gray-300">YT: {ytTitle}</span><button type="button" onClick={() => setTitle(ytTitle)} className="text-xs bg-brand-primary text-base-100 font-semibold px-2 py-1 rounded-md hover:bg-brand-secondary">Użyj</button></div>))}
-                            <div className="flex items-center justify-between text-sm"><span className="text-gray-300">Social: {titleSuggestions.socialHeadline}</span><button type="button" onClick={() => setTitle(titleSuggestions.socialHeadline)} className="text-xs bg-brand-primary text-base-100 font-semibold px-2 py-1 rounded-md hover:bg-brand-secondary">Użyj</button></div>
+                            {titleSuggestions.youtubeTitles.map((ytTitle, i) => (<div key={i} className="flex items-center justify-between text-sm"><span className="text-gray-300">YT: {ytTitle}</span><button type="button" onClick={() => dispatch({ type: 'SET_FIELD', field: 'title', payload: ytTitle })} className="text-xs bg-brand-primary text-base-100 font-semibold px-2 py-1 rounded-md hover:bg-brand-secondary">Użyj</button></div>))}
+                            <div className="flex items-center justify-between text-sm"><span className="text-gray-300">Social: {titleSuggestions.socialHeadline}</span><button type="button" onClick={() => dispatch({ type: 'SET_FIELD', field: 'title', payload: titleSuggestions.socialHeadline })} className="text-xs bg-brand-primary text-base-100 font-semibold px-2 py-1 rounded-md hover:bg-brand-secondary">Użyj</button></div>
                         </div>
                     )}
                     
-                    <div><label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">Tytuł Roboczy</label><input type="text" id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none" placeholder="np. Gotowanie spaghetti carbonara" required /></div>
-                    <div><label htmlFor="categories" className="block text-sm font-medium text-gray-300 mb-2">Kategorie / Nisza</label><input type="text" id="categories" value={categories} onChange={(e) => setCategories(e.target.value)} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none" placeholder="np. Kuchnia Włoska, Vlogi Kulinarne" required /></div>
-                    <div><label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-2">Preferowany Ton</label><select id="tone" value={tone} onChange={(e) => setTone(e.target.value)} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none"><option>profesjonalny</option> <option>zabawny</option> <option>edukacyjny</option> <option>inspirujący</option> <option>luźny</option></select></div>
+                    <div><label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">Tytuł Roboczy</label><input type="text" id="title" value={title} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'title', payload: e.target.value })} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none" placeholder="np. Gotowanie spaghetti carbonara" required /></div>
+                    <div><label htmlFor="categories" className="block text-sm font-medium text-gray-300 mb-2">Kategorie / Nisza</label><input type="text" id="categories" value={categories} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'categories', payload: e.target.value })} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none" placeholder="np. Kuchnia Włoska, Vlogi Kulinarne" required /></div>
+                    <div><label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-2">Preferowany Ton</label><select id="tone" value={tone} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'tone', payload: e.target.value })} className="w-full bg-base-300 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none"><option>profesjonalny</option> <option>zabawny</option> <option>edukacyjny</option> <option>inspirujący</option> <option>luźny</option></select></div>
                 </div>
-            </fieldset>
+            </FormSection>
 
-             <fieldset>
-                <legend className="text-xl font-bold text-white mb-4">2. Połączone Konta</legend>
+            <FormSection title="2. Połączone Konta">
                 <div className="p-4 bg-base-300 rounded-lg">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {socialPlatforms.map(({ id, name, icon }) => (
+                    {(Object.keys(initialState.connectedAccounts) as SocialPlatform[]).map((id) => (
                         <div key={id} className="text-center">
-                            <div className="text-gray-300 mb-2">{icon}</div>
+                            <div className="text-gray-300 mb-2">{
+                                { youtube: <YouTubeIcon className="w-6 h-6" />, tiktok: <TikTokIcon className="w-6 h-6" />, instagram: <InstagramIcon className="w-6 h-6" />, facebook: <FacebookIcon className="w-6 h-6" /> }[id]
+                            }</div>
                             <button 
                                 type="button"
-                                onClick={() => handleConnectAccount(id)}
+                                onClick={() => dispatch({ type: 'TOGGLE_ACCOUNT', payload: id })}
                                 className={`w-full text-sm font-semibold py-2 rounded-lg transition-colors ${
                                     connectedAccounts[id] 
                                     ? 'bg-green-500/20 text-green-400' 
@@ -377,10 +446,9 @@ const VideoAssistant: React.FC = () => {
                     ))}
                   </div>
                 </div>
-            </fieldset>
+            </FormSection>
 
-            <fieldset>
-                <legend className="text-xl font-bold text-white mb-4">3. Branding i Ulepszenia</legend>
+            <FormSection title="3. Branding i Ulepszenia">
                  <div className="grid md:grid-cols-2 gap-6">
                      <div className="space-y-4 p-4 bg-base-300 rounded-lg">
                          <h4 className="font-semibold text-gray-200 flex items-center gap-2"><BrandingIcon className="w-5 h-5 text-brand-primary"/> Branding Firmy</h4>
@@ -393,7 +461,7 @@ const VideoAssistant: React.FC = () => {
                          </div>
                          <div>
                             <label htmlFor="logo-position" className="block text-sm font-medium text-gray-300 mb-2">Pozycja Loga</label>
-                            <select id="logo-position" value={logoPosition} onChange={(e) => setLogoPosition(e.target.value)} className="w-full bg-base-100 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none">
+                            <select id="logo-position" value={logoPosition} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'logoPosition', payload: e.target.value })} className="w-full bg-base-100 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none">
                                 <option value="top-left">Lewy Górny</option>
                                 <option value="top-right">Prawy Górny</option>
                                 <option value="bottom-left">Lewy Dolny</option>
@@ -413,38 +481,37 @@ const VideoAssistant: React.FC = () => {
                                ) : (
                                    <p className="text-sm text-gray-400">Brak wybranej muzyki.</p>
                                )}
-                               <button type="button" onClick={() => setIsMusicModalOpen(true)} className="mt-2 text-sm w-full text-brand-light hover:text-white">
+                               <button type="button" onClick={() => dispatch({ type: 'SET_FIELD', field: 'isMusicModalOpen', payload: true })} className="mt-2 text-sm w-full text-brand-light hover:text-white">
                                  {selectedMusic ? 'Zmień utwór...' : 'Wyszukaj lub dodaj utwór...'}
                                </button>
                             </div>
                           <div className="flex items-center pt-2">
-                               <input type="checkbox" id="subtitles" checked={hasSubtitles} onChange={(e) => setHasSubtitles(e.target.checked)} className="h-4 w-4 rounded border-gray-500 bg-base-100 text-brand-primary focus:ring-brand-primary" />
+                               <input type="checkbox" id="subtitles" checked={hasSubtitles} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'hasSubtitles', payload: e.target.checked })} className="h-4 w-4 rounded border-gray-500 bg-base-100 text-brand-primary focus:ring-brand-primary" />
                                <label htmlFor="subtitles" className="ml-3 block text-sm font-medium text-gray-300">Dodaj automatyczne napisy</label>
                           </div>
                      </div>
                  </div>
-            </fieldset>
+            </FormSection>
 
             {videoFile && (
-                <fieldset>
-                    <legend className="text-xl font-bold text-white mb-4">4. Generator Miniatur AI</legend>
+                <FormSection title="4. Generator Miniatur AI">
                     <div className="p-4 bg-base-300 rounded-lg space-y-4">
                         <div className="grid md:grid-cols-2 gap-6 items-center">
                             <div>
                                 <h4 className="font-semibold text-gray-200 mb-2">Podgląd Wideo</h4>
                                 <div className={`w-full bg-black rounded-lg flex justify-center items-center ${videoOrientation === 'portrait' ? 'max-h-96' : ''}`}>
-                                  <video ref={videoRef} src={videoPreviewUrl ?? ''} className="w-full rounded-lg max-h-96 object-contain" muted controls={false} onLoadedMetadata={handleVideoMetadata}></video>
+                                  <video ref={videoRef} src={videoPreviewUrl ?? ''} className="w-full rounded-lg max-h-96 object-contain" muted controls={false} onLoadedMetadata={() => dispatch({ type: 'SET_FIELD', field: 'videoOrientation', payload: (videoRef.current && videoRef.current.videoWidth > videoRef.current.videoHeight) ? 'landscape' : 'portrait' })}></video>
                                 </div>
                             </div>
                             <div className="space-y-4">
                                 <div>
                                     <label htmlFor="timestamp" className="block text-sm font-medium text-gray-300 mb-2">Wybierz klatkę (sekunda): {thumbnailTimestamp}</label>
-                                    <input type="range" id="timestamp" min="0" max={videoRef.current?.duration || 60} value={thumbnailTimestamp} onChange={e => setThumbnailTimestamp(Number(e.target.value))} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-brand-primary"/>
+                                    <input type="range" id="timestamp" min="0" max={videoRef.current?.duration || 60} value={thumbnailTimestamp} onChange={e => dispatch({ type: 'SET_FIELD', field: 'thumbnailTimestamp', payload: Number(e.target.value) })} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-brand-primary"/>
                                     <p className="text-xs text-gray-400 mt-1">Przesuń suwak, aby wybrać klatkę do miniatury.</p>
                                 </div>
                                 <div>
                                     <label htmlFor="overlay-text" className="block text-sm font-medium text-gray-300 mb-2">Tekst na miniaturze (opcjonalnie)</label>
-                                    <input type="text" id="overlay-text" value={thumbnailOverlayText} onChange={e => setThumbnailOverlayText(e.target.value)} placeholder="AI wygeneruje, jeśli puste" className="w-full bg-base-100 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none"/>
+                                    <input type="text" id="overlay-text" value={thumbnailOverlayText} onChange={e => dispatch({ type: 'SET_FIELD', field: 'thumbnailOverlayText', payload: e.target.value })} placeholder="AI wygeneruje, jeśli puste" className="w-full bg-base-100 border border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-primary focus:outline-none"/>
                                 </div>
                             </div>
                         </div>
@@ -455,7 +522,7 @@ const VideoAssistant: React.FC = () => {
                             </button>
                          </div>
                     </div>
-                </fieldset>
+                </FormSection>
             )}
 
             <div className="pt-2">
@@ -470,13 +537,13 @@ const VideoAssistant: React.FC = () => {
       {error && <div className="mt-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center">{error}</div>}
       
       {isGeneratingThumbnails && <div className="mt-6 flex justify-center items-center gap-2 text-gray-300"><LoadingSpinner /> Generowanie podglądu miniatur...</div>}
-      {thumbnailSuggestions && (
+      {thumbnailSuggestions && thumbnailSuggestions.length > 0 && (
           <section className="mt-8 animate-fade-in">
               <h3 className="text-2xl font-bold mb-4 text-white">Sugerowane Miniatury</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {thumbnailSuggestions.map((thumb, index) => (
                       <div key={index} className="bg-base-200 p-3 rounded-lg shadow text-center group">
-                          <button onClick={() => setZoomedImage(thumb.imageData)} className="relative w-full block">
+                          <button onClick={() => dispatch({ type: 'SET_FIELD', field: 'zoomedImage', payload: thumb.imageData })} className="relative w-full block">
                             <img 
                                 src={`data:image/jpeg;base64,${thumb.imageData}`} 
                                 alt={thumb.description} 

@@ -105,6 +105,7 @@ const Chatbot: React.FC = () => {
                             onClick={handleSend}
                             disabled={isLoading || !input.trim()}
                             className="p-2 rounded-full bg-brand-primary text-base-100 hover:bg-brand-secondary transition-colors disabled:bg-base-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                            aria-label="Wyślij wiadomość"
                         >
                            <SendIcon className="w-5 h-5" />
                         </button>

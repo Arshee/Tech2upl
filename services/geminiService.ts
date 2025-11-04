@@ -21,8 +21,6 @@ const fileToGenerativePart = async (file: File) => {
 };
 
 export const searchRoyaltyFreeMusic = async (query: string, videoDescription: string): Promise<MusicTrack[]> => {
-    // FIX: Escaped backticks inside the template literal to prevent syntax errors.
-    // The unescaped backticks were causing the template string to terminate prematurely, leading to parsing errors.
     const prompt = `
         Jesteś kuratorem w obszernej bibliotece muzyki bez tantiem (royalty-free). Twoim zadaniem jest znalezienie 5 idealnie pasujących utworów muzycznych na podstawie zapytania użytkownika i opisu wideo.
 
