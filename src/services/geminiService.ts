@@ -1,8 +1,6 @@
 import { GoogleGenAI, Type, Chat, Modality } from "@google/genai";
 import { PublicationPlan, TitleSuggestions, ThumbnailSuggestion, CategoryAndTags, MusicTrack } from '../types';
 
-// FIX: Corrected API key access to use `process.env.API_KEY` as per the coding guidelines.
-// This resolves the TypeScript error related to `import.meta.env` and aligns with the project's requirements.
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
 }
@@ -125,7 +123,7 @@ export const generateCategoryAndTags = async (filename: string): Promise<Categor
 
 export const generateTitlesFromFilename = async (filename: string, primaryKeyword: string): Promise<TitleSuggestions> => {
     const prompt = `
-        Jesteś ekspertem od SEO i marketingu wideo. Twoim zadaniem jest przekształcenie technicznej nazwy pliku wideo w angażujące tytuły, bazując na głównej frazy kluczowej.
+        Jesteś ekspertem od SEO i marketingu wideo. Twoim zadaniem jest przekształcenie technicznej nazwy pliku wideo w angażujące tytuły, bazując na głównej frazie kluczowej.
 
         Nazwa Pliku: "${filename}"
         Główna Fraza Kluczowa: "${primaryKeyword}"

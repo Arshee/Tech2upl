@@ -29,39 +29,48 @@ Narzędzie do głębokiej analizy wizualnej.
 ## Stos Technologiczny
 
 - **Frontend:** [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/) (za pomocą CDN)
+- **Build Tool:** [Vite](https://vitejs.dev/)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 - **AI:** [Google Gemini API](https://ai.google.dev/) (`@google/genai`)
-- **Środowisko Uruchomieniowe:** Bezpośrednio w przeglądarce, z wykorzystaniem [Import Maps](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script/type/importmap) do dynamicznego ładowania modułów (bez `npm` i `package.json`).
 
 ## Uruchomienie
 
-Aplikacja jest zaprojektowana do działania bez potrzeby procesu budowania (np. Vite, Webpack) czy instalacji zależności za pomocą `npm`.
+Aplikacja wymaga Node.js i npm do zarządzania zależnościami i uruchomienia serwera deweloperskiego.
 
 1.  **Klucz API:**
-    Aplikacja wymaga klucza API do Google Gemini. Klucz ten **musi** być dostępny jako zmienna środowiskowa `process.env.API_KEY` w środowisku, w którym aplikacja jest uruchamiana.
-
-2.  **Serwer Lokalny:**
-    Aby uruchomić aplikację lokalnie, wystarczy serwować pliki za pomocą dowolnego prostego serwera WWW. Można użyć na przykład rozszerzenia "Live Server" w Visual Studio Code lub prostego serwera w Pythonie:
-    ```bash
-    python -m http.server
+    Aplikacja wymaga klucza API do Google Gemini. Klucz ten **musi** być dostępny jako zmienna środowiskowa `API_KEY` w środowisku, w którym aplikacja jest uruchamiana. Można to zrobić, tworząc plik `.env.local` w głównym katalogu projektu z następującą zawartością:
     ```
-    Następnie otwórz przeglądarkę pod adresem `http://localhost:8000`.
+    VITE_API_KEY=TWOJ_KLUCZ_API
+    ```
+
+2.  **Instalacja Zależności:**
+    ```bash
+    npm install
+    ```
+
+3.  **Serwer Lokalny:**
+    ```bash
+    npm run dev
+    ```
+    Aplikacja będzie dostępna pod adresem wskazanym w konsoli (zazwyczaj `http://localhost:5173`).
 
 ## Struktura Projektu
 
 ```
 .
-├── components/         # Komponenty React
-│   ├── VideoAssistant.tsx
-│   ├── Chatbot.tsx
-│   ├── ImageAnalyzer.tsx
-│   ├── Icons.tsx
-│   └── LoadingSpinner.tsx
-├── services/           # Logika komunikacji z API
-│   └── geminiService.ts
-├── App.tsx             # Główny komponent aplikacji
-├── index.html          # Główny plik HTML, punkt wejścia
-├── index.tsx           # Renderowanie aplikacji React
-├── metadata.json       # Metadane aplikacji
-└── types.ts            # Definicje typów TypeScript
+├── src/
+│   ├── components/
+│   │   ├── VideoAssistant.tsx
+│   │   ├── Chatbot.tsx
+│   │   ├── ...
+│   ├── services/
+│   │   └── geminiService.ts
+│   ├── App.tsx
+│   ├── index.css
+│   ├── index.tsx
+│   └── types.ts
+├── index.html
+├── package.json
+├── vite.config.ts
+└── tailwind.config.js
 ```

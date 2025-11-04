@@ -427,7 +427,7 @@ const VideoAssistant: React.FC = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {(Object.keys(initialState.connectedAccounts) as SocialPlatform[]).map((id) => (
                         <div key={id} className="text-center">
-                            <div className="text-gray-300 mb-2">{
+                            <div className="mx-auto text-gray-300 mb-2">{
                                 { youtube: <YouTubeIcon className="w-6 h-6" />, tiktok: <TikTokIcon className="w-6 h-6" />, instagram: <InstagramIcon className="w-6 h-6" />, facebook: <FacebookIcon className="w-6 h-6" /> }[id]
                             }</div>
                             <button 
@@ -533,7 +533,7 @@ const VideoAssistant: React.FC = () => {
         </form>
       </div>
       
-      {error && <div className="mt-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center">{error}</div>}
+      {error && <div className="mt-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-center" onClick={() => dispatch({ type: 'DISMISS_ERROR' })}>{error}</div>}
       
       {isGeneratingThumbnails && <div className="mt-6 flex justify-center items-center gap-2 text-gray-300"><LoadingSpinner /> Generowanie podglądu miniatur...</div>}
       {thumbnailSuggestions && thumbnailSuggestions.length > 0 && (
