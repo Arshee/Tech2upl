@@ -4,7 +4,7 @@ import type { ChatMessage } from '../types';
 import { getChatInstance } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
 import { SendIcon, UserIcon, SparklesIcon } from './Icons';
-import type { Chat } from '@google/ai';
+import type { Chat } from '@google/genai';
 
 const Chatbot: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
